@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"math"
 
 	"google.golang.org/protobuf/proto"
 
@@ -83,7 +84,7 @@ func (p *AppPlayer) handleDealerMessage(ctx context.Context, msg dealer.Message)
 		if !p.app.cfg.ExternalVolume && len(p.app.cfg.MixerDevice) == 0 {
 			// update initial volume
 			p.initialVolumeOnce.Do(func() {
-				p.updateVolume(p.app.cfg.InitialVolume * player.MaxStateVolume / p.app.cfg.VolumeSteps)
+				p.updateVolume(p.app.cfg.InitialVolume * player.MaxStateVolume / p.app.cfg.VolumeSteps, false)
 			})
 		}
 	} else if strings.HasPrefix(msg.Uri, "hm://connect-state/v1/connect/volume") {
@@ -91,8 +92,8 @@ func (p *AppPlayer) handleDealerMessage(ctx context.Context, msg dealer.Message)
 		if err := proto.Unmarshal(msg.Payload, &setVolCmd); err != nil {
 			return fmt.Errorf("failed unmarshalling SetVolumeCommand: %w", err)
 		}
-
-		p.updateVolume(uint32(setVolCmd.Volume))
+		p.app.log.Debugf("From local API SetVolumeCommand")
+		p.updateVolume(uint32(setVolCmd.Volume), true)
 	} else if strings.HasPrefix(msg.Uri, "hm://connect-state/v1/connect/logout") {
 		// this should happen only with zeroconf enabled
 		p.app.log.WithField("username", librespot.ObfuscateUsername(p.sess.Username())).
@@ -526,8 +527,8 @@ func (p *AppPlayer) handleApiRequest(ctx context.Context, req ApiRequest) (any, 
 		} else {
 			volume = data.Volume
 		}
-
-		p.updateVolume(uint32(volume) * player.MaxStateVolume / p.app.cfg.VolumeSteps)
+		p.app.log.Debugf("ApiRequestTypeSetVolume to %d", volume)
+		p.updateVolume(uint32(volume) * player.MaxStateVolume / p.app.cfg.VolumeSteps, false)
 		return nil, nil
 	case ApiRequestTypeSetRepeatingContext:
 		val := req.Data.(bool)
@@ -611,8 +612,9 @@ func (p *AppPlayer) Run(ctx context.Context, apiRecv <-chan ApiRequest) {
 			// limit them (otherwise we get HTTP error 429: Too many requests
 			// for user). Sending the new value after 1 second of no updates
 			// matches the Spotify Web Player.
-			p.state.device.Volume = uint32(volume * player.MaxStateVolume)
-			volumeTimer.Reset(time.Second)
+			//p.state.device.Volume = uint32(volume * player.MaxStateVolume)
+			p.state.device.Volume = uint32(math.Floor(float64(volume * player.MaxStateVolume+0.5)))
+			volumeTimer.Reset(time.Millisecond * 150)
 		case <-volumeTimer.C:
 			// We've gone 1 second without update, send the new value now.
 			p.volumeUpdated(ctx)

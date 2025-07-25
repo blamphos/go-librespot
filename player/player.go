@@ -296,6 +296,7 @@ loop:
 				}
 			case playerCmdVolume:
 				volume = cmd.data.(float32)
+				p.log.Debugf("playerCmdVolume to %f", volume)
 				if out != nil {
 					out.SetVolume(volume)
 				}

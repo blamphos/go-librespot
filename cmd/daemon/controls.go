@@ -643,19 +643,27 @@ func (p *AppPlayer) advanceNext(ctx context.Context, forceNext, drop bool) (bool
 // Return the volume as an integer in the range 0..player.MaxStateVolume, as
 // used in the API.
 func (p *AppPlayer) apiVolume() uint32 {
-	return uint32(math.Ceil(float64(p.state.device.Volume*p.app.cfg.VolumeSteps) / player.MaxStateVolume))
+	//return uint32(math.Ceil(float64(p.state.device.Volume*p.app.cfg.VolumeSteps) / player.MaxStateVolume))
+	return uint32(math.Floor(float64(p.state.device.Volume*p.app.cfg.VolumeSteps) / player.MaxStateVolume+0.5))
 }
 
 // Set the player volume to the new volume, also notifies about the change.
-func (p *AppPlayer) updateVolume(newVal uint32) {
+func (p *AppPlayer) updateVolume(newVal uint32, originatedFromSpotify bool) {
 	if newVal > player.MaxStateVolume {
 		newVal = player.MaxStateVolume
 	} else if newVal < 0 {
 		newVal = 0
 	}
 
-	p.app.log.Debugf("update volume to %d/%d", newVal, player.MaxStateVolume)
-	p.player.SetVolume(newVal)
+	intVal := uint32(math.Floor(float64(newVal*p.app.cfg.VolumeSteps) / player.MaxStateVolume+0.5))
+	p.app.log.Debugf("update volume to %d/%d -> %d", newVal, player.MaxStateVolume, intVal)
+	//p.player.SetVolume(newVal)
+
+	if (originatedFromSpotify) {
+		p.app.log.Debugf("This call was from Spotify app")
+	} else {
+		p.player.SetVolume(newVal)
+	}
 
 	// If there is a value in the channel buffer, remove it.
 	select {

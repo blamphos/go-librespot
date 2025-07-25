@@ -403,6 +403,7 @@ func (out *alsaOutput) SetVolume(vol float32) {
 		panic(fmt.Sprintf("invalid volume value: %0.2f", vol))
 	}
 
+	out.log.Debugf("alsa SetVolume %f", vol)
 	out.volume = vol
 	sendVolumeUpdate(out.volumeUpdate, vol)
 
